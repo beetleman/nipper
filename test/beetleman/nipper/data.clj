@@ -23,8 +23,11 @@
 
 
 (defn generate
-  [size]
-  (random-map size
-              (fn []
-                (let [f (rand-nth [random-map random-vector])]
-                  (f (rand-int 100) #(random-str (rand-int 100)))))))
+  ([size]
+   (generate size 100))
+  ([size max-nested-size]
+   (random-map size
+               (fn []
+                 (let [f (rand-nth [random-map random-vector])]
+                   (f (rand-int max-nested-size)
+                      #(random-str (rand-int 100))))))))

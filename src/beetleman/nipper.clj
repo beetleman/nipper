@@ -28,6 +28,16 @@
   (nippy/thaw-from-file (str path "/" "index.npy")))
 
 
+(defn- save-meta! [path data]
+  (nippy/freeze-to-file (str path "/" "meta.npy")
+                        (meta data)))
+
+
+(defn- load-meta! [path data]
+  (with-meta data
+             (nippy/thaw-from-file (str path "/" "meta.npy"))))
+
+
 (defn calc-part-size
   ([data]
    (calc-part-size data 5))
@@ -39,22 +49,24 @@
        part-size))))
 
 
-(defn dump
+(defn dump!
   ([path data]
-   (dump path data (calc-part-size data)))
+   (dump! path data (calc-part-size data)))
   ([path data part-size]
    (.mkdir (java.io.File. path))
    (let [index-data (create-index-data data part-size)
          index      (keys index-data)]
      (save-index! path index)
+     (save-meta! path data)
      (doseq [[fname ks] index-data]
        (nippy/freeze-to-file (str path "/" fname)
                              (select-keys data ks))))))
 
 
-(defn load [path]
-  (reduce
-   (fn [acc fname]
-     (merge acc (nippy/thaw-from-file (str path "/" fname))))
-   {}
-   (load-index! path)))
+(defn load! [path]
+  (load-meta! path
+              (reduce
+               (fn [acc fname]
+                 (merge acc (nippy/thaw-from-file (str path "/" fname))))
+               {}
+               (load-index! path))))
