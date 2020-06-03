@@ -1,6 +1,7 @@
 (ns beetleman.nipper
   (:refer-clojure :exclude [load])
   (:require [taoensso.nippy :as nippy]
+            [clojure.tools.logging :as log]
             [clojure.java.io :as io])
   (:import [java.io DataInputStream]))
 
@@ -59,16 +60,32 @@
      file)))
 
 
+(defn- default-progress-cb [kind p]
+  (log/info kind ": " p "%"))
+
+
+(defn calc-progress [idx max-idx]
+  (if (zero? max-idx)
+    0
+    (int (* (/ idx max-idx) 100.0))))
+
+
 (defn dump!
   ([path data]
-   (dump! path data (calc-part-size data)))
-  ([path data part-size]
+   (dump! path data {}))
+  ([path data
+    {:keys [part-size
+            progress-cb]
+     :or   {progress-cb (partial default-progress-cb "DUMP")}}]
    (.mkdir (java.io.File. path))
-   (let [index-data (create-index-data data part-size)
-         index      (keys index-data)]
+   (let [part-size  (or part-size (calc-part-size data))
+         index-data (create-index-data data part-size)
+         index      (keys index-data)
+         max-idx    (dec (count index))]
      (save-index! path index)
      (save-meta! path data)
-     (doseq [[fname ks] index-data]
+     (doseq [[idx [fname ks]] (map-indexed vector index-data)]
+       (progress-cb (calc-progress idx max-idx))
        (fast-freeze-to-file (str path "/" fname)
                             (select-keys data ks))))))
 
@@ -82,10 +99,18 @@
      (nippy/fast-thaw ba))))
 
 
-(defn load! [path]
-  (load-meta! path
-              (reduce
-               (fn [acc fname]
-                 (merge acc (fast-thaw-from-file (str path "/" fname))))
-               {}
-               (load-index! path))))
+(defn load!
+  ([path]
+   (load! path {}))
+  ([path
+    {:keys [progress-cb]
+     :or   {progress-cb (partial default-progress-cb "LOAD")}}]
+   (let [index   (load-index! path)
+         max-idx (dec (count index))]
+     (load-meta! path
+                 (reduce
+                  (fn [acc [idx fname]]
+                    (progress-cb (calc-progress idx max-idx))
+                    (merge acc (fast-thaw-from-file (str path "/" fname))))
+                  {}
+                  (map-indexed vector index))))))
