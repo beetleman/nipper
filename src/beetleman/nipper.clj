@@ -10,13 +10,25 @@
   (str idx ".npy"))
 
 
+(defn- remove-not-exist-keys-from-part [data part]
+  (println (pr-str data part))
+  (filter #(contains? data %)
+          part))
+
+
 (defn- create-index-data
   ([data]
-   (create-index-data data 10))
-  ([data part-size]
-   (let [parts (->> data
-                    keys
-                    (partition-all part-size))]
+   (create-index-data data 10 []))
+  ([data part-size force-parts]
+   (let [force-parts (into []
+                           (comp (map #(remove-not-exist-keys-from-part data %))
+                                 (remove empty?))
+                           force-parts)
+         keys        (keys (apply dissoc
+                                  data
+                                  (mapcat identity force-parts)))
+         parts       (into force-parts
+                           (partition-all part-size keys))]
      (into {}
            (map-indexed (fn [idx part]
                           [(file-name idx) part])
@@ -75,19 +87,22 @@
    (dump! path data {}))
   ([path data
     {:keys [part-size
+            force-parts
             progress-cb]
-     :or   {progress-cb (partial default-progress-cb "DUMP")}}]
+     :or   {progress-cb (partial default-progress-cb "DUMP")
+            force-parts []}}]
    (.mkdir (java.io.File. path))
    (let [part-size  (or part-size (calc-part-size data))
-         index-data (create-index-data data part-size)
+         index-data (create-index-data data part-size force-parts)
          index      (keys index-data)
          max-idx    (dec (count index))]
-     (save-index! path index)
-     (save-meta! path data)
      (doseq [[idx [fname ks]] (map-indexed vector index-data)]
        (progress-cb (calc-progress idx max-idx))
        (fast-freeze-to-file (str path "/" fname)
-                            (select-keys data ks))))))
+                            (select-keys data ks)))
+     (save-meta! path data)
+     (save-index! path index)
+     path)))
 
 
 (defn- fast-thaw-from-file
