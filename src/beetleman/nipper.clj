@@ -11,7 +11,6 @@
 
 
 (defn- remove-not-exist-keys-from-part [data part]
-  (println (pr-str data part))
   (filter #(contains? data %)
           part))
 

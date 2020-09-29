@@ -1,7 +1,8 @@
 {:style  [:community :justified :respect-nl :extend-nl]
- :parse  {:interpose "\n\n\n"}
  :fn-map {"defn-" [:arg2
-                   {:fn-force-nl #{:arg2} :next-inner {:remove {:fn-force-nl #{:arg2}}}}]
+                   {:fn-force-nl #{:arg2}
+                    :next-inner  {:remove {:fn-force-nl #{:arg2}}}}]
           "defn"  [:arg2
-                   {:fn-force-nl #{:arg2} :next-inner {:remove {:fn-force-nl #{:arg2}}}}]}
+                   {:fn-force-nl #{:arg2}
+                    :next-inner  {:remove {:fn-force-nl #{:arg2}}}}]}
  :map    {:comma? false}}
