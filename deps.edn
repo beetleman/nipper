@@ -1,6 +1,11 @@
-{:paths   ["src" "test"]
- :deps    {com.taoensso/nippy        {:mvn/version "3.0.0"}
+{:paths   ["src"]
+ :deps    {com.taoensso/nippy        {:mvn/version "3.1.1"}
            org.clojure/tools.logging {:mvn/version "1.1.0"}}
- :aliases {:test {:extra-deps {lambdaisland/kaocha    {:mvn/version "1.0.700"}
-                               org.clojure/test.check {:mvn/version "1.1.0"}}
-                  :main-opts  ["-m" "kaocha.runner"]}}}
+ :aliases {:dev  {:extra-paths ["test"]
+                  :extra-deps  {org.clojure/test.check {:mvn/version "1.1.0"}
+                                com.clojure-goes-fast/clj-async-profiler
+                                {:mvn/version "0.5.0"}}}
+           :test {:extra-paths ["test"]
+                  :extra-deps  {lambdaisland/kaocha    {:mvn/version "1.0.861"}
+                                org.clojure/test.check {:mvn/version "1.1.0"}}
+                  :main-opts   ["-m" "kaocha.runner"]}}}

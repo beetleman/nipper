@@ -122,9 +122,10 @@
    (let [index   (load-index! path)
          max-idx (dec (count index))]
      (load-meta! path
-                 (reduce
-                  (fn [acc [idx fname]]
-                    (progress-cb (calc-progress idx max-idx))
-                    (merge acc (fast-thaw-from-file (str path "/" fname))))
-                  {}
-                  (map-indexed vector index))))))
+                 (persistent!
+                  (reduce
+                   (fn [acc [idx fname]]
+                     (progress-cb (calc-progress idx max-idx))
+                     (conj! acc (fast-thaw-from-file (str path "/" fname))))
+                   (transient {})
+                   (map-indexed vector index)))))))

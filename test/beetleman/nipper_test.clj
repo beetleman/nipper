@@ -4,6 +4,31 @@
             [clojure.test :as t]))
 
 
+
+(comment
+ "profiling tools"
+ (require '[clj-async-profiler.core :as prof])
+ (prof/serve-files 8080)
+
+ (let [path ".test/dump-load-test-1"
+       m    (data/generate 4 4)
+       d    (with-meta (data/generate 10000) m)]
+
+   (prof/profile
+    (dotimes [_ 10]
+      (println "dump")
+      (time
+       (sut/dump! path d {:part-size 10 :progress-cb identity}))
+
+      (println "load")
+      (time
+       (sut/load! path {:progress-cb identity}))))
+
+   :x)
+)
+
+
+
 (t/deftest dump!-load!-test
   (let [path ".test/dump-load-test-1"
         m    (data/generate 4 4)
