@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-clojure -A:test "$@"
+clojure -M:test "$@"
