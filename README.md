@@ -9,6 +9,18 @@ so you need more memory to make dump.
 `nipper` use [nippy](https://github.com/ptaoussanis/nippy) for data format but dump HashMap to filesystem
 in chunks, by default every chunk is 5% of whole data structure.
 
+# Release Information
+
+Latest release:
+
+[deps.edn](https://clojure.org/reference/deps_and_cli) dependency information:
+
+```
+beetleman/nipper {:git/url "https://github.com/beetleman/nipper"
+                  :sha     "dbeb835"}
+
+```
+
 ## Usage
 
 ```clojure
