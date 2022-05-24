@@ -53,6 +53,9 @@
 
 
 (defn calc-part-size
+  "calculate part size based on percentage
+  - `data` - HashMap with data
+  - `percentage` - percentage for with size pill be calculated, default `5`"
   ([data]
    (calc-part-size data 5))
   ([data percentage]
@@ -64,24 +67,39 @@
 
 
 (defn- fast-freeze-to-file
-  ([file x]
-   (let [^bytes ba (nippy/fast-freeze x)]
-     (with-open [out (io/output-stream (io/file file))]
-       (.write out ba))
-     file)))
+  "Faster (in this usecase) version of nippy/fast-freeze
+  - `file` - path to file
+  - `data` - data to save"
+  [file data]
+  (let [^bytes ba (nippy/fast-freeze data)]
+    (with-open [out (io/output-stream (io/file file))]
+      (.write out ba))
+    file))
 
 
 (defn- default-progress-cb [kind p]
   (log/info kind ": " p "%"))
 
 
-(defn calc-progress [idx max-idx]
+(defn- calc-progress
+  "Calc progress, returns percentage"
+  [idx max-idx]
   (if (zero? max-idx)
     0
     (int (* (/ idx max-idx) 100.0))))
 
 
 (defn dump!
+  "Save HashMap do filesystem
+  - `path` - path where HashMap will be saved and later can be loaded via [[load!]]
+  - `data` - HashMap to persist
+  additional options map with keys:
+  - `part-size` - size of data chunk saved to disk, number of key saved to single file in `path`,
+    defaults `5%`. [[calc-part-size]] can be used to calculate size using percent values
+  - `force-parts` - parts saved in seperate files, ignore `part-size`, vector of vectors:
+     `[[:key-1] [:key-2 :key-3]]` - `:key-1` will be saved in one file and keys `:key-2` and `:key-3` in another
+     rest of keys will be saved in parts devined by `part-size`
+  - `progress-cb` - function called on load progress, eg. `(fn [percentage] (println percentage \"%\"))`"
   ([path data]
    (dump! path data {}))
   ([path data
@@ -105,6 +123,7 @@
 
 
 (defn- fast-thaw-from-file
+  "Faster (in this usecase) version of `nippy/fast-thaw`"
   ([file]
    (let [file (io/file file)
          ba   (byte-array (.length file))]
@@ -114,6 +133,10 @@
 
 
 (defn load!
+  "Load HashMap from filesystem
+  - `path` - path to directory where data was saved via [[dump!]]
+  additional options map with keys:
+  - `progress-cb` - function called on load progress, eg. `(fn [percentage] (println percentage \"%\"))`"
   ([path]
    (load! path {}))
   ([path
