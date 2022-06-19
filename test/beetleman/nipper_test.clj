@@ -30,45 +30,55 @@
 
 
 (t/deftest dump!-load!-test
-  (let [path ".test/dump-load-test-1"
-        m    (data/generate 4 4)
-        d    (with-meta (data/generate 100) m)]
-    (t/is (= path
-             (sut/dump! path d {:part-size 3})))
-    (let [loaded (sut/load! path)]
-      (t/testing "d -> dump! -> load! -> d"
-                 (t/is (= d
-                          loaded)))
-      (t/testing "metadata survive"
-                 (t/is (= m
-                          (meta loaded)))))
+  (doseq [parallel [true false]]
     (t/testing
-     "progress-cb"
-     (let [load-cb (atom [])
-           dump-cb (atom [])
-           path    (sut/dump! ".test/dump-load-test-2"
-                              d
-                              {:progress-cb #(swap! dump-cb conj %)})
-           loaded  (sut/load! path {:progress-cb #(swap! load-cb conj %)})]
-       (t/is (= d
-                loaded))
-       (t/is (= @load-cb
-                @dump-cb))
-       (t/is (zero? (first @load-cb)))
-       (t/is (= 100
-                (last @load-cb)))))
-    (t/testing
-     "force-parts"
-     (let [path   (sut/dump! ".test/dump-load-test-3"
-                             d
-                             {:force-parts [[::not-exist]
-                                            [::not-exist-2
-                                             (-> d
-                                                 keys
-                                                 rand-nth)]]})
-           loaded (sut/load! path)]
-       (t/is (= d
-                loaded))))))
+     (str "parallel: " parallel)
+     (let [path ".test/dump-load-test-1"
+           m    (data/generate 4 4)
+           d    (with-meta (data/generate 100) m)]
+       (t/is (= path
+                (sut/dump! path
+                           d
+                           {:part-size 3
+                            :parallel  parallel})))
+       (let [loaded (sut/load! path {:parallel parallel})]
+         (t/testing "d -> dump! -> load! -> d"
+                    (t/is (= d
+                             loaded)))
+         (t/testing "metadata survive"
+                    (t/is (= m
+                             (meta loaded)))))
+       (t/testing
+        "progress-cb"
+        (let [load-cb (atom [])
+              dump-cb (atom [])
+              path    (sut/dump! ".test/dump-load-test-2"
+                                 d
+                                 {:progress-cb #(swap! dump-cb conj %)
+                                  :parallel    parallel})
+              loaded  (sut/load! path
+                                 {:progress-cb #(swap! load-cb conj %)
+                                  :parallel    parallel})]
+          (t/is (= d
+                   loaded))
+          (t/is (= @load-cb
+                   @dump-cb))
+          (t/is (zero? (first @load-cb)))
+          (t/is (= 100
+                   (last @load-cb)))))
+       (t/testing
+        "force-parts"
+        (let [path   (sut/dump! ".test/dump-load-test-3"
+                                d
+                                {:force-parts [[::not-exist]
+                                               [::not-exist-2
+                                                (-> d
+                                                    keys
+                                                    rand-nth)]]
+                                 :parallel    parallel})
+              loaded (sut/load! path {:parallel parallel})]
+          (t/is (= d
+                   loaded))))))))
 
 
 (t/deftest create-index-data-test

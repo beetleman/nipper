@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [load])
   (:require [taoensso.nippy :as nippy]
             [clojure.tools.logging :as log]
+            [clojure.core.reducers :as r]
             [clojure.java.io :as io])
   (:import [java.io DataInputStream]))
 
@@ -111,7 +112,7 @@
    (.mkdir (java.io.File. path))
    (let [part-size  (or part-size (calc-part-size data))
          index-data (create-index-data data part-size force-parts)
-         index      (keys index-data)
+         index      (vec (keys index-data))
          max-idx    (dec (count index))]
      (doseq [[idx [fname ks]] (map-indexed vector index-data)]
        (progress-cb (calc-progress idx max-idx))
@@ -132,23 +133,44 @@
      (nippy/fast-thaw ba))))
 
 
+(defn- load-parallel-reducer! [coll]
+  (r/fold 1
+          (fn combinef
+            ([] {})
+            ([x y] (into x y)))
+          into
+          coll))
+
+
+(defn- load-reducer! [coll]
+  (r/reduce into {} coll))
+
+
 (defn load!
   "Load HashMap from filesystem
   - `path` - path to directory where data was saved via [[dump!]]
   additional options map with keys:
-  - `progress-cb` - function called on load progress, eg. `(fn [percentage] (println percentage \"%\"))`"
+  - `progress-cb` - function called on load progress, eg. `(fn [percentage] (println percentage \"%\"))`
+  - `parallel` - if set to `true` load data using all available CPU cores, default to `false`"
   ([path]
    (load! path {}))
   ([path
-    {:keys [progress-cb]
-     :or   {progress-cb (partial default-progress-cb "LOAD")}}]
+    {:keys [progress-cb parallel]
+     :or   {progress-cb (partial default-progress-cb "LOAD")
+            parallel    false}}]
    (let [index   (load-index! path)
-         max-idx (dec (count index))]
-     (load-meta! path
-                 (persistent!
-                  (reduce
-                   (fn [acc [idx fname]]
-                     (progress-cb (calc-progress idx max-idx))
-                     (conj! acc (fast-thaw-from-file (str path "/" fname))))
-                   (transient {})
-                   (map-indexed vector index)))))))
+         max-idx (dec (count index))
+         count   (atom 0)
+         lock    (Object.)
+         reducer (if parallel
+                   load-parallel-reducer!
+                   load-reducer!)]
+     (load-meta!
+      path
+      (->> index
+           (r/map (fn [fname]
+                    (locking lock
+                             (progress-cb (calc-progress @count max-idx))
+                             (swap! count inc))
+                    (fast-thaw-from-file (str path "/" fname))))
+           reducer)))))
