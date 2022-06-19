@@ -6,6 +6,6 @@
                                 com.clojure-goes-fast/clj-async-profiler
                                 {:mvn/version "0.5.1"}}}
            :test {:extra-paths ["test"]
-                  :extra-deps  {lambdaisland/kaocha    {:mvn/version "1.66.1034"}
+                  :extra-deps  {lambdaisland/kaocha    {:mvn/version "1.67.1055"}
                                 org.clojure/test.check {:mvn/version "1.1.1"}}
                   :main-opts   ["-m" "kaocha.runner"]}}}
