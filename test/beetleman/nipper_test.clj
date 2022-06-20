@@ -22,7 +22,9 @@
 
       (println "load")
       (time
-       (sut/load! path {:progress-cb identity}))))
+       (sut/load! path
+                  {:progress-cb identity
+                   :parallel    true}))))
 
    :x)
 )

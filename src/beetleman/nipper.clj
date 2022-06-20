@@ -3,7 +3,8 @@
   (:require [taoensso.nippy :as nippy]
             [clojure.tools.logging :as log]
             [clojure.core.reducers :as r]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [clj-fast.core :as fast])
   (:import [java.io DataInputStream]))
 
 
@@ -133,17 +134,28 @@
      (nippy/fast-thaw ba))))
 
 
-(defn- load-parallel-reducer! [coll]
-  (r/fold 1
-          (fn combinef
-            ([] {})
-            ([x y] (into x y)))
-          into
-          coll))
+(defn- load-parallel-reducer! [coll coll-size]
+  (let [cores (.availableProcessors (Runtime/getRuntime))
+        parts (-> coll-size
+                  (/ cores)
+                  (* 2)
+                  int
+                  (max 5))]
+    (r/fold parts
+            (fn combinef
+              ([] (transient {}))
+              ([acc x]
+               (fast/rmerge! (persistent! x) acc)))
+            (fn reducef [acc x]
+              (fast/rmerge! @x acc))
+            coll)))
 
 
 (defn- load-reducer! [coll]
-  (r/reduce into {} coll))
+  (r/reduce (fn [acc x]
+              (fast/rmerge! @x acc))
+            (transient {})
+            coll))
 
 
 (defn load!
@@ -160,17 +172,21 @@
             parallel    false}}]
    (let [index   (load-index! path)
          max-idx (dec (count index))
-         count   (atom 0)
+         counter (atom 0)
          lock    (Object.)
          reducer (if parallel
-                   load-parallel-reducer!
+                   #(load-parallel-reducer! % (count index))
                    load-reducer!)]
      (load-meta!
       path
-      (->> index
-           (r/map (fn [fname]
-                    (locking lock
-                             (progress-cb (calc-progress @count max-idx))
-                             (swap! count inc))
-                    (fast-thaw-from-file (str path "/" fname))))
-           reducer)))))
+      (persistent!
+       (->> (vec index)
+            (r/map
+             (fn [fname]
+               (delay
+                (let [data (fast-thaw-from-file (str path "/" fname))]
+                  (locking lock
+                           (progress-cb (calc-progress @counter max-idx))
+                           (swap! counter inc))
+                  data))))
+            reducer))))))
