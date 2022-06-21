@@ -1,10 +1,10 @@
 (ns beetleman.nipper
   (:refer-clojure :exclude [load])
-  (:require [taoensso.nippy :as nippy]
-            [clojure.tools.logging :as log]
-            [clojure.core.reducers :as r]
+  (:require [clj-fast.core :as fast]
+            [clojure.core.async :as async]
             [clojure.java.io :as io]
-            [clj-fast.core :as fast])
+            [clojure.tools.logging :as log]
+            [taoensso.nippy :as nippy])
   (:import [java.io DataInputStream]))
 
 
@@ -134,30 +134,6 @@
      (nippy/fast-thaw ba))))
 
 
-(defn- load-parallel-reducer! [coll coll-size]
-  (let [cores (.availableProcessors (Runtime/getRuntime))
-        parts (-> coll-size
-                  (/ cores)
-                  (* 2)
-                  int
-                  (max 5))]
-    (r/fold parts
-            (fn combinef
-              ([] (transient {}))
-              ([acc x]
-               (fast/rmerge! (persistent! x) acc)))
-            (fn reducef [acc x]
-              (fast/rmerge! @x acc))
-            coll)))
-
-
-(defn- load-reducer! [coll]
-  (r/reduce (fn [acc x]
-              (fast/rmerge! @x acc))
-            (transient {})
-            coll))
-
-
 (defn load!
   "Load HashMap from filesystem
   - `path` - path to directory where data was saved via [[dump!]]
@@ -170,23 +146,33 @@
     {:keys [progress-cb parallel]
      :or   {progress-cb (partial default-progress-cb "LOAD")
             parallel    false}}]
-   (let [index   (load-index! path)
-         max-idx (dec (count index))
-         counter (atom 0)
-         lock    (Object.)
-         reducer (if parallel
-                   #(load-parallel-reducer! % (count index))
-                   load-reducer!)]
+   (let [index    (load-index! path)
+         chan-in  (async/to-chan! index)
+         chan-out (async/chan)
+         max-idx  (dec (count index))
+         counter  (atom 0)
+         lock     (Object.)
+         parallel (case parallel
+                    true  (-> (Runtime/getRuntime)
+                              (.availableProcessors)
+                              dec)
+                    false 1
+                    (max parallel 1))]
+     (async/pipeline-blocking
+      parallel
+      chan-out
+      (map (fn [fname]
+             (let [data (fast-thaw-from-file (str path "/" fname))]
+               (locking lock
+                        (progress-cb (calc-progress @counter max-idx))
+                        (swap! counter inc))
+               data)))
+      chan-in)
      (load-meta!
       path
-      (persistent!
-       (->> (vec index)
-            (r/map
-             (fn [fname]
-               (delay
-                (let [data (fast-thaw-from-file (str path "/" fname))]
-                  (locking lock
-                           (progress-cb (calc-progress @counter max-idx))
-                           (swap! counter inc))
-                  data))))
-            reducer))))))
+      (loop [x (async/<!! chan-out)
+             r (transient {})]
+        (if x
+          (recur (async/<!! chan-out)
+                 (fast/rmerge! x r))
+          (persistent! r)))))))

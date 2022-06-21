@@ -1,6 +1,7 @@
 {:paths   ["src"]
  :deps    {com.taoensso/nippy        {:mvn/version "3.1.1"}
            org.clojure/tools.logging {:mvn/version "1.2.4"}
+           org.clojure/core.async    {:mvn/version "1.5.648"}
            bsless/clj-fast           {:mvn/version "0.0.11"}}
  :aliases {:dev  {:extra-paths ["test"]
                   :extra-deps  {org.clojure/test.check {:mvn/version "1.1.1"}
